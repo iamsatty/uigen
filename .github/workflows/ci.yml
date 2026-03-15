@@ -4,7 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened]
     branches: [main]
+  issue_comment:
+    types: [created]
 
 jobs:
   ci:
@@ -30,3 +33,46 @@ jobs:
 
       - name: Test
         run: npm run test
+
+  pr-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate PR title
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          if [ -z "$PR_TITLE" ]; then
+            echo "PR title is empty"
+            exit 1
+          fi
+          echo "PR title: $PR_TITLE"
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '✅ CI checks triggered. Build and tests are running.'
+            })
+
+  mention-handler:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issue_comment' && contains(github.event.comment.body, '@github-actions')
+
+    steps:
+      - name: Respond to mention
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '👋 You mentioned me! CI is being handled automatically.'
+            })
